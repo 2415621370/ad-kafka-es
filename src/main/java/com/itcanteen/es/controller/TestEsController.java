@@ -148,7 +148,6 @@ public class TestEsController {
      */
     @GetMapping("/query/book/novels")
     public ResponseEntity query(String title,String author){
-
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
 
         if(null!=title){
@@ -165,7 +164,7 @@ public class TestEsController {
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(boolQueryBuilder);
 
-        SearchResponse searchResponse = searchRequestBuilder.get();
+       SearchResponse searchResponse = searchRequestBuilder.get();
 
 
         SearchHits hits = searchResponse.getHits();

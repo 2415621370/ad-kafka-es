@@ -30,15 +30,14 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 public class BinlogConsumer {
 
-
     @Autowired
-    private TransportClient client;
+    private EsSyncData esSyncData;
 
 
     @KafkaListener(topics={"ad-search-mysql-data"})
     public  void consumerMysqlBinLogData(ConsumerRecord<?, ?> record) throws IOException {
         log.info("开始监听消息");
-        System.out.println(record.value());
+      //  System.out.println(record.value());
         Optional<?> kafkaMessage = Optional.ofNullable(record.value());
         log.info("开始监听消息-》{}",record.value());
         if(kafkaMessage.isPresent()){
@@ -52,102 +51,20 @@ public class BinlogConsumer {
 
             String tableName =  binLogKafkaData.getTableName();
 
-//{"after":[{"user_status":"0","update_time":"Thu Jan 01 08:00:00 IRKT 1970",
-// "create_time":"Thu Jan 01 08:00:00 IRKT 1970",
-// "id":"30","username":"21ww","token":"2122323232"}],"eventType":"UpdateRowsEventData","tableName":"ad_user"}
+
             //添加数据
             if(eventType.equals("WriteRowsEventData")){
+                esSyncData.add(tableName,binLogKafkaData);
 
-                if(tableName.equals("ad_plan")){
-                    for(int i=0;i<binLogKafkaData.getAfter().size();i++){
-                        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject()
-                                .field("user_status", binLogKafkaData.getAfter().get(i).get("user_status"))
-                                .field("update_time", binLogKafkaData.getAfter().get(i).get("update_time"))
-                                .field("create_time", binLogKafkaData.getAfter().get(i).get("create_time"))
-                                .field("username", binLogKafkaData.getAfter().get(i).get("username"))
-                                .field("token",binLogKafkaData.getAfter().get(i).get("token"))
-                                .field("id", binLogKafkaData.getAfter().get(i).get("id"))
-                                .endObject();
-
-                        IndexResponse indexResponse = this.client.prepareIndex(
-                                "ad", "ad_user",binLogKafkaData.getAfter().get(i).get("id")
-                        ).setSource(xContentBuilder).get();
-
-                        log.info("添加数据->{}",indexResponse.getResult().toString());
-                    }
-                }
-
-
-               // if()
-                for(int i=0;i<binLogKafkaData.getAfter().size();i++){
-                    XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject()
-                            .field("user_status", binLogKafkaData.getAfter().get(i).get("user_status"))
-                            .field("update_time", binLogKafkaData.getAfter().get(i).get("update_time"))
-                            .field("create_time", binLogKafkaData.getAfter().get(i).get("create_time"))
-                            .field("username", binLogKafkaData.getAfter().get(i).get("username"))
-                            .field("token",binLogKafkaData.getAfter().get(i).get("token"))
-                            .field("id", binLogKafkaData.getAfter().get(i).get("id"))
-                            .endObject();
-
-                    IndexResponse indexResponse = this.client.prepareIndex(
-                            "ad", "ad_user",binLogKafkaData.getAfter().get(i).get("id")
-                    ).setSource(xContentBuilder).get();
-
-                    log.info("添加数据->{}",indexResponse.getResult().toString());
-                }
             }
             //更新数据
             if(eventType.equals("UpdateRowsEventData")){
-                binLogKafkaData.getAfter().forEach(i->{
-                    UpdateRequest updateRequest = new UpdateRequest("ad", "ad_user", i.get("id"));
-
-                    //构建请求字段
-                    try {
-                        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject();
-                        if(null!=i.get("user_status")){
-                            xContentBuilder.field("user_status",i.get("user_status"));
-                        }
-
-                        if(null!=i.get("update_time")){
-                            xContentBuilder.field("update_time",i.get("update_time"));
-                        }
-
-                        if(null!=i.get("create_time")){
-                            xContentBuilder.field("create_time",i.get("create_time"));
-                        }
-
-                        if(null!=i.get("username")){
-                            xContentBuilder.field("username",i.get("username"));
-                        }
-
-                        if(null!=i.get("token")){
-                            xContentBuilder.field("token",i.get("token"));
-                        }
-                        xContentBuilder.endObject();
-                        updateRequest.doc(xContentBuilder);
-
-                        UpdateResponse updateResponse = this.client.update(updateRequest).get();
-                        log.info("更新数据-》{}",updateResponse.getResult().toString());
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    }
-
-                });
-
+                esSyncData.upd(tableName,binLogKafkaData);
             }
 
             //删除数据
             if(eventType.equals("DeleteRowsEventData")){
-                binLogKafkaData.getAfter().forEach(i->{
-                    DeleteRequestBuilder deleteRequestBuilder = this.client.prepareDelete("ad", "ad_user", i.get("id"));
-                    DeleteResponse deleteResponse = deleteRequestBuilder.get();
-                    log.info("删除数据-》{}",deleteResponse.getResult().toString());
-                });
+                esSyncData.del(tableName,binLogKafkaData);
             }
 
 
